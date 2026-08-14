@@ -1,0 +1,16 @@
+[
+  {
+    "isbn": "9780000000002",
+    "title": "Synthetic Systems",
+    "authors": ["Alex Example"],
+    "publisher": "Aurora Press",
+    "description": "A fully synthetic record created for demonstration and tests."
+  },
+  {
+    "isbn": "9780000000019",
+    "title": "The Horizon Catalog",
+    "authors": ["Taylor Demo"],
+    "publisher": "Horizon Press",
+    "description": "No production or customer information is represented."
+  }
+]

@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>NexaBook · Login</title>
+<body><main><h1>NexaBook</h1><p>Book metadata enrichment portfolio edition.</p>
+{% if error %}<p role="alert">{{ error }}</p>{% endif %}
+<form method="post"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+<label>Username <input name="username" autocomplete="username" required></label>
+<label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+<button>Sign in</button></form></main></body></html>

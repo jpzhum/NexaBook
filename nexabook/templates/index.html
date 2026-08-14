@@ -1,0 +1,9 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>NexaBook</title>
+<body><main><h1>NexaBook</h1><p>Enrich bibliographic metadata through an ordered provider pipeline.</p>
+<form method="post" action="/books/enrich"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+<label>ISBN <input name="isbn" required></label><button>Enrich</button></form>
+<form method="post" action="/exports"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+<select name="file_type"><option>csv</option><option>xlsx</option></select><button>Export</button></form>
+<table><thead><tr><th>ISBN</th><th>Title</th><th>Authors</th><th>Sources</th></tr></thead><tbody>
+{% for book in books %}<tr><td>{{ book.isbn }}</td><td>{{ book.title }}</td><td>{{ book.authors|join(', ') }}</td><td>{{ book.sources|join(', ') }}</td></tr>{% endfor %}
+</tbody></table></main></body></html>

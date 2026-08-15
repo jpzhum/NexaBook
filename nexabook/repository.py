@@ -37,17 +37,31 @@ class BookRepository:
 
     def add(self, book: BookMetadata) -> int:
         with sqlite3.connect(self.path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            existing = connection.execute(
+                "SELECT sources_json FROM books WHERE isbn = ?", (book.isbn,)
+            ).fetchone()
+            sources = list(book.sources)
+            if existing:
+                stored_sources = json.loads(existing[0])
+                sources = list(dict.fromkeys([*stored_sources, *sources]))
+
             cursor = connection.execute(
                 """INSERT INTO books (isbn,title,authors_json,publisher,published_date,description,page_count,language,cover_url,sources_json)
                 VALUES (?,?,?,?,?,?,?,?,?,?)
                 ON CONFLICT(isbn) DO UPDATE SET
-                    title=excluded.title, authors_json=excluded.authors_json, publisher=excluded.publisher,
-                    published_date=excluded.published_date, description=excluded.description,
-                    page_count=excluded.page_count, language=excluded.language, cover_url=excluded.cover_url,
+                    title=CASE WHEN excluded.title <> '' THEN excluded.title ELSE books.title END,
+                    authors_json=CASE WHEN excluded.authors_json <> '[]' THEN excluded.authors_json ELSE books.authors_json END,
+                    publisher=CASE WHEN excluded.publisher <> '' THEN excluded.publisher ELSE books.publisher END,
+                    published_date=CASE WHEN excluded.published_date <> '' THEN excluded.published_date ELSE books.published_date END,
+                    description=CASE WHEN excluded.description <> '' THEN excluded.description ELSE books.description END,
+                    page_count=COALESCE(excluded.page_count, books.page_count),
+                    language=CASE WHEN excluded.language <> '' THEN excluded.language ELSE books.language END,
+                    cover_url=CASE WHEN excluded.cover_url <> '' THEN excluded.cover_url ELSE books.cover_url END,
                     sources_json=excluded.sources_json
                 RETURNING id""",
                 (book.isbn, book.title, json.dumps(book.authors), book.publisher, book.published_date, book.description,
-                 book.page_count, book.language, book.cover_url, json.dumps(book.sources)),
+                 book.page_count, book.language, book.cover_url, json.dumps(sources)),
             )
             return int(cursor.fetchone()[0])
 

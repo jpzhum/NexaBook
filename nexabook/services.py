@@ -18,7 +18,7 @@ class EnrichmentService:
         for provider in self.providers:
             try:
                 candidate = provider.fetch(isbn)
-            except (requests.RequestException, ValidationError, TypeError, KeyError, AttributeError):
+            except (requests.RequestException, ValidationError):
                 candidate = None
             if candidate:
                 result.merge_missing(candidate, provider.name)

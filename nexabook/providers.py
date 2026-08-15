@@ -4,7 +4,7 @@ import json
 from typing import Protocol
 
 import requests
-from openai import APIError, OpenAI
+from openai import OpenAI, OpenAIError
 from pydantic import ValidationError
 
 from .models import BookMetadata
@@ -37,11 +37,14 @@ class GoogleBooksProvider:
         info = items[0].get("volumeInfo", {})
         if not isinstance(info, dict):
             return None
+        image_links = info.get("imageLinks", {})
+        if not isinstance(image_links, dict):
+            image_links = {}
         return BookMetadata(
             isbn=isbn, title=info.get("title", ""), authors=info.get("authors", []),
             publisher=info.get("publisher", ""), published_date=info.get("publishedDate", ""),
             description=info.get("description", ""), page_count=info.get("pageCount"),
-            language=info.get("language", ""), cover_url=info.get("imageLinks", {}).get("thumbnail", ""),
+            language=info.get("language", ""), cover_url=image_links.get("thumbnail", ""),
         )
 
 
@@ -59,9 +62,15 @@ class OpenLibraryProvider:
         data = response.json()
         if not isinstance(data, dict):
             return None
+        publishers = data.get("publishers")
+        publisher = (
+            publishers[0]
+            if isinstance(publishers, list) and publishers and isinstance(publishers[0], str)
+            else ""
+        )
         return BookMetadata(
             isbn=isbn, title=data.get("title", ""),
-            publisher=(data.get("publishers") or [""])[0], published_date=data.get("publish_date", ""),
+            publisher=publisher, published_date=data.get("publish_date", ""),
             page_count=data.get("number_of_pages"), cover_url=f"https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg",
         )
 
@@ -81,11 +90,18 @@ class OpenAIFallbackProvider:
             f"Use empty values when uncertain. Book ISBN: {isbn}"
         )
         try:
-            response = self.client.responses.create(model=self.model, input=prompt)
+            response = self.client.responses.create(
+                model=self.model,
+                input=prompt,
+                max_output_tokens=800,
+                store=False,
+            )
             data = json.loads(response.output_text)
+            if not isinstance(data, dict):
+                return None
             data["isbn"] = isbn
             return BookMetadata.model_validate(data)
-        except (APIError, json.JSONDecodeError, ValidationError, AttributeError, TypeError, KeyError):
+        except (OpenAIError, json.JSONDecodeError, ValidationError, AttributeError, TypeError):
             # The fallback is optional: SDK/network errors and invalid model output
             # must never discard metadata already obtained from deterministic APIs.
             return None

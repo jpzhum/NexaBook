@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -66,7 +66,8 @@ def create_app() -> FastAPI:
 
     @app.post("/books/enrich", response_class=HTMLResponse)
     def enrich(request: Request, isbn: str = Form(...), csrf: str = Form(...)):
-        require_user(request); verify_csrf(request, csrf)
+        require_user(request)
+        verify_csrf(request, csrf)
         providers = [GoogleBooksProvider(settings.google_books_api_key), OpenLibraryProvider()]
         if settings.enable_openai_fallback:
             providers.append(OpenAIFallbackProvider(settings.openai_api_key, settings.openai_model))
@@ -81,7 +82,8 @@ def create_app() -> FastAPI:
 
     @app.post("/exports")
     def create_export(request: Request, file_type: str = Form("csv"), csrf: str = Form(...)):
-        require_user(request); verify_csrf(request, csrf)
+        require_user(request)
+        verify_csrf(request, csrf)
         try:
             target = export_books(repository.list_all(), settings.export_dir, file_type)
         except ValueError as error:
@@ -89,8 +91,5 @@ def create_app() -> FastAPI:
         return FileResponse(target, filename=target.name)
 
     return app
-
-
-from fastapi import HTTPException
 
 app = create_app()

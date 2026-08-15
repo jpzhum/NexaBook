@@ -15,6 +15,8 @@ def build_client(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DATABASE_PATH", str(tmp_path / "web.db"))
     monkeypatch.setenv("EXPORT_DIR", str(tmp_path / "exports"))
     monkeypatch.delenv("ADMIN_USERNAME", raising=False)
+    monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("SECRET_KEY", raising=False)
     get_settings.cache_clear()
     from nexabook.web import create_app
     return TestClient(create_app())
@@ -62,7 +64,11 @@ def test_invalid_export_type_returns_bad_request(tmp_path, monkeypatch):
 
 def test_production_requires_login_and_sets_secure_session_cookie(tmp_path, monkeypatch):
     client = build_production_client(tmp_path, monkeypatch)
-    assert client.get("/", follow_redirects=False).status_code == 303
+    redirect = client.get("/", follow_redirects=False)
+    assert redirect.status_code == 303
+    assert redirect.headers["location"] == "/login"
+    assert client.get("/health").status_code == 200
+    assert client.get("/api/docs").status_code == 200
     login_page = client.get("/login")
     csrf = csrf_from(login_page)
     response = client.post(
@@ -73,6 +79,7 @@ def test_production_requires_login_and_sets_secure_session_cookie(tmp_path, monk
     assert response.status_code == 303
     cookie = response.headers["set-cookie"].lower()
     assert "httponly" in cookie and "samesite=lax" in cookie and "secure" in cookie
+    assert client.get("/").status_code == 200
 
 
 def test_login_throttles_repeated_failures(tmp_path, monkeypatch):

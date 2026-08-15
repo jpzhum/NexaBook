@@ -52,23 +52,23 @@ The configured order is:
 4. If metadata is still incomplete and AI fallback is explicitly enabled, query OpenAI.
 5. Validate and merge only missing fields into `BookMetadata`.
 6. Persist the result in SQLite.
-7. Export selected public fields to CSV or XLSX.
+7. On request, export selected public fields to CSV or XLSX.
 
 Provider failures are isolated. A network error or invalid optional AI response does not overwrite metadata already collected.
 
 ## AI integration
 
-OpenAI is the final, optional enrichment provider—not the source of truth and not a mandatory runtime dependency.
+OpenAI is the final, optional enrichment provider—not the source of truth. When the fallback is disabled, the application requires neither an OpenAI API key nor an OpenAI network request.
 
-It receives an ISBN plus a bounded instruction describing the expected metadata fields. The Responses API must return a JSON object; the application parses it and validates it through Pydantic. Invalid JSON or incompatible output is rejected and the pipeline continues with the deterministic metadata already available. No pricing, authentication or permission decision is delegated to the model.
+It receives an ISBN plus a bounded instruction describing the expected metadata fields. The application asks the Responses API for a JSON object, parses the response and validates it through a Pydantic model that rejects unknown fields. Invalid JSON or incompatible output is rejected and the pipeline continues with the deterministic metadata already available. No pricing, authentication or permission decision is delegated to the model.
 
-This is prompt-requested JSON validated locally, not OpenAI Structured Outputs or JSON mode. The SDK client uses an 8-second timeout and two retries for transient API failures.
+This is prompt-requested JSON validated locally, not OpenAI Structured Outputs or JSON mode. The SDK client uses an 8-second timeout and two retries for transient API failures, caps output at 800 tokens and requests `store=false`. Pydantic validation establishes shape and types, not bibliographic truth; LLM-sourced values remain identifiable through the `openai_fallback` source label.
 
 Tests inject a fake client, so the suite never spends API credits. See [AI integration details](docs/ai-integration.md).
 
 ## Tech stack
 
-- Python 3.12.8
+- Python 3.12
 - FastAPI, Starlette sessions and Jinja2
 - Pydantic
 - SQLite
@@ -76,7 +76,7 @@ Tests inject a fake client, so the suite never spends API credits. See [AI integ
 - OpenAI Responses API
 - Google Books API and Open Library API
 - Pandas and OpenPyXL
-- Pytest and HTTPX
+- Pytest and HTTPX2
 
 ## Project structure
 
@@ -111,14 +111,14 @@ python -m pip install -r requirements-dev.txt
 copy .env.example .env
 ```
 
-For local development, authentication is disabled when `ADMIN_USERNAME` is empty. To exercise login locally, configure all three authentication variables.
+For local development, authentication is disabled when both administrator credentials are unset. To exercise login locally, configure `ADMIN_USERNAME`, `ADMIN_PASSWORD` and a `SECRET_KEY` of at least 32 characters; partial authentication configuration or a shorter session secret fails at startup.
 
 ## Environment variables
 
 | Variable | Purpose |
 | --- | --- |
 | `APP_ENV` | `development` or `production`; production enables secure cookies and strict credential checks |
-| `SECRET_KEY` | Signs session cookies; production requires at least 32 characters |
+| `SECRET_KEY` | Signs session cookies; authentication requires at least 32 characters |
 | `ADMIN_USERNAME` | Portfolio application administrator |
 | `ADMIN_PASSWORD` | Administrator password |
 | `GOOGLE_BOOKS_API_KEY` | Optional Google Books quota key |
@@ -146,11 +146,11 @@ python -m pytest -q
 python -m pip check
 ```
 
-Verified on Python 3.12.10: **26 tests passed**, using mocked integrations, temporary files and synthetic metadata.
+GitHub Actions runs both commands on Python 3.12 for every push and pull request. Locally verified on Python 3.12.10: **42 tests passed**, using mocked integrations, temporary files and synthetic metadata.
 
 ## Security
 
-Production startup fails unless authentication is configured and the session secret has at least 32 characters. Session cookies are HttpOnly and SameSite=Lax, and become Secure in production. State-changing forms require a session-bound CSRF token, generated data is ignored by Git, and API tests are offline.
+Production startup fails unless authentication is configured and the session secret has at least 32 characters. Development startup also rejects partial authentication configuration or a session secret shorter than 32 characters when login is enabled. Unknown `APP_ENV` values fail closed. Session cookies are HttpOnly and SameSite=Lax, and become Secure in production. State-changing forms require a session-bound CSRF token, generated data is ignored by Git, and API tests are offline.
 
 Login throttling is intentionally local and in memory: it resets on restart, is not shared across workers, and identifies clients from the direct connection IP. It is suitable only as a basic portfolio safeguard; a deployment behind a reverse proxy must define trusted proxy handling, and a multi-worker deployment needs a shared limiter. Expired entries are removed when an identity is checked, while inactive identities remain until restart.
 

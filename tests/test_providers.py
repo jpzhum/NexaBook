@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from openai import APIError
+
 from nexabook.providers import GoogleBooksProvider, OpenAIFallbackProvider, OpenLibraryProvider
 
 
@@ -32,9 +34,19 @@ def test_open_library_maps_public_payload():
     assert book and book.publisher == "Aurora Press"
 
 
+def test_providers_reject_unexpected_payload_shapes():
+    assert GoogleBooksProvider(session=Session(Response([]))).fetch("9780000000002") is None
+    assert OpenLibraryProvider(session=Session(Response([]))).fetch("9780000000002") is None
+
+
 class Responses:
     def __init__(self, output): self.output = output
     def create(self, **kwargs): return SimpleNamespace(output_text=self.output)
+
+
+class FailingResponses:
+    def create(self, **kwargs):
+        raise APIError("unavailable", request=None, body=None)
 
 
 def test_openai_fallback_validates_structured_json():
@@ -45,4 +57,9 @@ def test_openai_fallback_validates_structured_json():
 
 def test_openai_fallback_fails_closed_on_invalid_output():
     client = SimpleNamespace(responses=Responses("not-json"))
+    assert OpenAIFallbackProvider(None, "test-model", client=client).fetch("9780000000002") is None
+
+
+def test_openai_fallback_fails_closed_on_api_error():
+    client = SimpleNamespace(responses=FailingResponses())
     assert OpenAIFallbackProvider(None, "test-model", client=client).fetch("9780000000002") is None

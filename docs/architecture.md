@@ -15,4 +15,6 @@ flowchart LR
 
 Providers return the same validated model. The enrichment service fills missing fields in configured order and stops once its quality threshold is met. Network errors produce a missing provider result rather than corrupting an existing record.
 
-SQLite is intentionally appropriate for this single-process portfolio application. A production system with multiple writers would require a managed database and a shared rate-limit store.
+The default threshold counts title, authors, publisher, description and page count, and stops after any three are populated. This avoids unnecessary external calls, but it can leave fields such as description or language empty when title, authors and publisher arrive first. The threshold is intentionally configurable; changing it is a product-quality/cost trade-off rather than a universal correctness fix.
+
+SQLite is intentionally appropriate for this single-process portfolio application. ISBN is unique and repeated enrichment updates the existing catalog row. SQLite transactions protect each write, but a production system with multiple writers would require a managed database and a shared rate-limit store.

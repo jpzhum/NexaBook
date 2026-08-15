@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from nexabook.models import BookMetadata
 from nexabook.services import EnrichmentService, normalize_isbn
+import pytest
 
 
 class FakeProvider:
@@ -17,6 +18,13 @@ class FakeProvider:
 
 def test_normalize_isbn_accepts_display_format():
     assert normalize_isbn("978-0-00-000000-2") == "9780000000002"
+    assert normalize_isbn("0-306-40615-2") == "0306406152"
+
+
+@pytest.mark.parametrize("isbn", ["9780000000003", "0306406153", "X306406152", "123"])
+def test_normalize_isbn_rejects_invalid_format_or_checksum(isbn):
+    with pytest.raises(ValueError):
+        normalize_isbn(isbn)
 
 
 def test_pipeline_merges_missing_fields_in_provider_order():

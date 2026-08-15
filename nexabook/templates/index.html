@@ -1,5 +1,6 @@
 <!doctype html><html lang="en"><meta charset="utf-8"><title>NexaBook</title>
 <body><main><h1>NexaBook</h1><p>Enrich bibliographic metadata through an ordered provider pipeline.</p>
+{% if message %}<p role="alert">{{ message }}</p>{% endif %}
 <form method="post" action="/books/enrich"><input type="hidden" name="csrf" value="{{ csrf_token }}">
 <label>ISBN <input name="isbn" required></label><button>Enrich</button></form>
 <form method="post" action="/exports"><input type="hidden" name="csrf" value="{{ csrf_token }}">

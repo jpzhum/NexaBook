@@ -4,7 +4,8 @@ import json
 from typing import Protocol
 
 import requests
-from openai import OpenAI
+from openai import APIError, OpenAI
+from pydantic import ValidationError
 
 from .models import BookMetadata
 
@@ -27,10 +28,15 @@ class GoogleBooksProvider:
             params["key"] = self.api_key
         response = self.session.get("https://www.googleapis.com/books/v1/volumes", params=params, timeout=8)
         response.raise_for_status()
-        items = response.json().get("items", [])
-        if not items:
+        payload = response.json()
+        if not isinstance(payload, dict):
+            return None
+        items = payload.get("items", [])
+        if not isinstance(items, list) or not items or not isinstance(items[0], dict):
             return None
         info = items[0].get("volumeInfo", {})
+        if not isinstance(info, dict):
+            return None
         return BookMetadata(
             isbn=isbn, title=info.get("title", ""), authors=info.get("authors", []),
             publisher=info.get("publisher", ""), published_date=info.get("publishedDate", ""),
@@ -51,6 +57,8 @@ class OpenLibraryProvider:
             return None
         response.raise_for_status()
         data = response.json()
+        if not isinstance(data, dict):
+            return None
         return BookMetadata(
             isbn=isbn, title=data.get("title", ""),
             publisher=(data.get("publishers") or [""])[0], published_date=data.get("publish_date", ""),
@@ -62,7 +70,7 @@ class OpenAIFallbackProvider:
     name = "openai_fallback"
 
     def __init__(self, api_key: str | None, model: str, client: OpenAI | None = None) -> None:
-        self.client = client or (OpenAI(api_key=api_key) if api_key else None)
+        self.client = client or (OpenAI(api_key=api_key, timeout=8.0, max_retries=2) if api_key else None)
         self.model = model
 
     def fetch(self, isbn: str) -> BookMetadata | None:
@@ -77,7 +85,7 @@ class OpenAIFallbackProvider:
             data = json.loads(response.output_text)
             data["isbn"] = isbn
             return BookMetadata.model_validate(data)
-        except Exception:
+        except (APIError, json.JSONDecodeError, ValidationError, AttributeError, TypeError, KeyError):
             # The fallback is optional: SDK/network errors and invalid model output
             # must never discard metadata already obtained from deterministic APIs.
             return None

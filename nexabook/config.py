@@ -42,9 +42,9 @@ def get_settings() -> Settings:
         enable_openai_fallback=os.getenv("ENABLE_OPENAI_FALLBACK", "false").lower() in {"1", "true", "yes"},
     )
     if app_env == "production" and (
-        settings.secret_key == "development-only-secret" or not settings.admin_username or not settings.admin_password
+        len(settings.secret_key) < 32 or not settings.admin_username or not settings.admin_password
     ):
-        raise RuntimeError("Production requires SECRET_KEY, ADMIN_USERNAME and ADMIN_PASSWORD")
+        raise RuntimeError("Production requires SECRET_KEY (at least 32 characters), ADMIN_USERNAME and ADMIN_PASSWORD")
     settings.database_path.parent.mkdir(parents=True, exist_ok=True)
     settings.export_dir.mkdir(parents=True, exist_ok=True)
     return settings

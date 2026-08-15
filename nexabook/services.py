@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from .models import BookMetadata
+import requests
+from pydantic import ValidationError
+
+from .models import BookMetadata, normalize_isbn
 from .providers import MetadataProvider
-
-
-def normalize_isbn(value: str) -> str:
-    cleaned = "".join(ch for ch in value if ch.isdigit() or ch.upper() == "X")
-    if len(cleaned) not in {10, 13}:
-        raise ValueError("ISBN must contain 10 or 13 characters")
-    return cleaned
 
 
 class EnrichmentService:
@@ -22,7 +18,7 @@ class EnrichmentService:
         for provider in self.providers:
             try:
                 candidate = provider.fetch(isbn)
-            except requests.RequestException:
+            except (requests.RequestException, ValidationError, TypeError, KeyError, AttributeError):
                 candidate = None
             if candidate:
                 result.merge_missing(candidate, provider.name)
@@ -30,6 +26,3 @@ class EnrichmentService:
             if populated >= self.minimum_fields:
                 break
         return result
-
-
-import requests  # kept below domain declarations to make the handled integration failure explicit

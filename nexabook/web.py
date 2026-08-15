@@ -70,14 +70,22 @@ def create_app() -> FastAPI:
         providers = [GoogleBooksProvider(settings.google_books_api_key), OpenLibraryProvider()]
         if settings.enable_openai_fallback:
             providers.append(OpenAIFallbackProvider(settings.openai_api_key, settings.openai_model))
-        book = EnrichmentService(providers).enrich(isbn)
+        try:
+            book = EnrichmentService(providers).enrich(isbn)
+        except ValueError as error:
+            return templates.TemplateResponse(
+                request, "index.html", context(request, books=repository.list_all(), message=str(error)), status_code=422
+            )
         repository.add(book)
         return RedirectResponse("/", status_code=303)
 
     @app.post("/exports")
     def create_export(request: Request, file_type: str = Form("csv"), csrf: str = Form(...)):
         require_user(request); verify_csrf(request, csrf)
-        target = export_books(repository.list_all(), settings.export_dir, file_type)
+        try:
+            target = export_books(repository.list_all(), settings.export_dir, file_type)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
         return FileResponse(target, filename=target.name)
 
     return app
